@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SPY-3697</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="scanline-overlay"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">SPY</span><span class="brand-num">–3697</span>
+    </div>
+    <div class="topbar-sub" id="cfg-sub">loading config…</div>
+  </header>
+
+  <main class="console">
+    <section class="control-panel">
+      <div class="field">
+        <label for="target">TARGET</label>
+        <input id="target" type="text" placeholder="10.10.10.5 or ctf.example-range.local" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="goal">INSTRUCTION</label>
+        <textarea id="goal" rows="2" placeholder="Check this target for common vulnerabilities">Check this target for common vulnerabilities</textarea>
+      </div>
+      <label class="confirm">
+        <input id="confirm" type="checkbox" />
+        <span>I confirm I am authorized to actively test this target (owned system, CTF box, or signed scope).</span>
+      </label>
+      <button id="run-btn" class="run-btn">
+        <span class="run-btn-label">RUN FULL PIPELINE</span>
+        <span class="run-btn-sub">recon → identify → verify → report</span>
+      </button>
+      <div class="stage-track" id="stage-track">
+        <div class="stage" data-stage="recon">RECON</div>
+        <div class="stage" data-stage="identify">IDENTIFY</div>
+        <div class="stage" data-stage="verify">VERIFY</div>
+        <div class="stage" data-stage="report">REPORT</div>
+      </div>
+    </section>
+
+    <section class="ledger-panel">
+      <div class="ledger-head">
+        <span>EVIDENCE LEDGER</span>
+        <span class="ledger-hint">every line below traces to a captured tool run</span>
+      </div>
+      <pre class="ledger" id="ledger">// SPY-3697 idle. Provide a target and confirm authorization to begin.\n</pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

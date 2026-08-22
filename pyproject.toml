@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spy3697"
+version = "0.1.0"
+description = "AI-orchestrated pentest assistant for authorized CTFs and scoped engagements"
+requires-python = ">=3.10"
+
+[project.scripts]
+spy3697 = "spy3697.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["spy3697*"]

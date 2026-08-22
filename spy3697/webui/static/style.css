@@ -1,0 +1,131 @@
+/* SPY-3697 — operator console
+   Palette: #0B0F0E deep gunmetal, #14201C panel, #E8A33D signal amber,
+   #63C29A verified green, #D9636B rejected red, #7C8B85 muted text */
+
+:root {
+  --bg: #0b0f0e;
+  --panel: #10201c;
+  --panel-2: #0e1815;
+  --line: #23342e;
+  --text: #cfe0d8;
+  --muted: #7c8b85;
+  --amber: #e8a33d;
+  --green: #63c29a;
+  --red: #d9636b;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  position: relative;
+}
+
+.scanline-overlay {
+  pointer-events: none;
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px,
+    transparent 1px, transparent 3px
+  );
+  z-index: 50;
+  mix-blend-mode: overlay;
+}
+
+.topbar {
+  display: flex; align-items: baseline; gap: 16px;
+  padding: 22px 32px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-family: var(--mono); font-size: 22px; letter-spacing: 2px; }
+.brand-mark { color: var(--amber); font-weight: 600; }
+.brand-num { color: var(--text); font-weight: 500; }
+.topbar-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+.console {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1px;
+  background: var(--line);
+  min-height: calc(100vh - 68px);
+}
+
+.control-panel, .ledger-panel {
+  background: var(--panel-2);
+  padding: 28px;
+}
+
+.field { margin-bottom: 18px; }
+.field label {
+  display: block; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px;
+}
+.field input, .field textarea {
+  width: 100%; background: var(--panel); border: 1px solid var(--line);
+  color: var(--text); font-family: var(--mono); font-size: 13px;
+  padding: 10px 12px; border-radius: 3px; resize: vertical;
+}
+.field input:focus, .field textarea:focus {
+  outline: none; border-color: var(--amber);
+}
+
+.confirm {
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12.5px; color: var(--muted); line-height: 1.5;
+  margin-bottom: 20px; cursor: pointer;
+}
+.confirm input { margin-top: 3px; accent-color: var(--amber); }
+
+.run-btn {
+  width: 100%; background: var(--amber); color: #1a1204; border: none;
+  padding: 14px 16px; border-radius: 3px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+.run-btn:hover { filter: brightness(1.1); }
+.run-btn:active { transform: translateY(1px); }
+.run-btn:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+.run-btn-label { font-family: var(--mono); font-weight: 600; font-size: 13px; letter-spacing: 1px; }
+.run-btn-sub { font-size: 11px; opacity: 0.75; }
+
+.stage-track {
+  display: flex; margin-top: 24px; gap: 4px;
+}
+.stage {
+  flex: 1; text-align: center; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 1px; color: var(--muted); padding: 8px 4px;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--panel);
+  transition: all 0.2s ease;
+}
+.stage.active { color: var(--amber); border-color: var(--amber); }
+.stage.done { color: var(--green); border-color: var(--green); }
+
+.ledger-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+  margin-bottom: 14px; letter-spacing: 1px;
+}
+.ledger-head span:first-child { color: var(--text); font-weight: 600; }
+.ledger-hint { font-size: 11px; }
+
+.ledger {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.65;
+  white-space: pre-wrap; word-break: break-word;
+  height: calc(100vh - 200px); overflow-y: auto;
+  margin: 0; color: var(--text);
+}
+.ledger .line-recon { color: #8fb8d6; }
+.ledger .line-identify { color: var(--amber); }
+.ledger .line-verify { color: var(--green); }
+.ledger .line-error { color: var(--red); }
+.ledger .line-report { color: #c9a6e8; }
+
+@media (max-width: 860px) {
+  .console { grid-template-columns: 1fr; }
+}

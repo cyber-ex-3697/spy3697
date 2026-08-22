@@ -1,0 +1,36 @@
+# Copy to config.yaml and edit.
+
+llm:
+  provider: anthropic            # anthropic | openai_compatible | ollama
+  model: claude-sonnet-5
+  api_key_env: ANTHROPIC_API_KEY # name of the environment variable holding the key
+  base_url: null                 # only needed for openai_compatible / ollama, e.g. http://localhost:11434/v1
+  max_tokens: 4000
+  temperature: 0.2
+
+# Hard allow-list. SPY-3697 refuses active modules against anything not listed here
+# unless the CLI/web call also passes an explicit authorization confirmation.
+authorized_targets:
+  - 10.10.10.0/24
+  - ctf.example-range.local
+  # - your-own-lab-ip
+
+# Passive-only targets never trigger active scanning, exploitation, or exec, no matter what.
+passive_only_targets: []
+
+workspace_dir: ./workspace
+
+tools:
+  nmap_path: nmap
+  nuclei_path: nuclei
+  httpx_path: httpx
+  sqlmap_path: sqlmap
+  gobuster_path: gobuster
+  tshark_path: tshark
+  wordlist_dir: /usr/share/wordlists
+
+limits:
+  max_scan_seconds: 900
+  max_verify_attempts_per_finding: 3
+  max_exec_seconds: 60
+  rate_limit_requests_per_sec: 10
