@@ -1,0 +1,155 @@
+SPY-3697 — HOW TO USE
+======================
+
+This guide walks you through setting up and running SPY-3697 from scratch on
+Kali Linux. Follow the steps in order.
+
+
+STEP 1 — Set up a Python virtual environment
+---------------------------------------------
+From inside the spy3697 folder:
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+
+You should see packages like typer, fastapi, and anthropic get installed.
+If any step fails, note the error before continuing.
+
+Remember: every time you open a new terminal to use SPY-3697, you need to
+re-activate the virtual environment first:
+
+    source .venv/bin/activate
+
+
+STEP 2 — Install the external security tools it wraps
+--------------------------------------------------------
+SPY-3697 does not reimplement scanning logic itself — it shells out to
+well-known, purpose-built security tools and captures their real output.
+Install them:
+
+    sudo apt update
+    sudo apt install nmap sqlmap gobuster tshark whatweb -y
+
+Nuclei and httpx are Go-based tools, installed separately:
+
+    sudo apt install golang-go -y
+    go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+
+Make sure ~/go/bin is on your PATH (Kali's default shell is zsh):
+
+    echo 'export PATH=$PATH:~/go/bin' >> ~/.zshrc
+    source ~/.zshrc
+
+(If you're using bash instead of zsh, edit ~/.bashrc and run
+`source ~/.bashrc` instead.)
+
+Confirm everything is found:
+
+    which nmap sqlmap gobuster tshark nuclei httpx
+
+Every one of those commands should print a file path. If any print nothing,
+that tool isn't installed correctly — revisit its install step above.
+
+
+STEP 3 — Create your config file
+-----------------------------------
+Copy the example config to a real one:
+
+    cp config.example.yaml config.yaml
+
+Open it in a text editor:
+
+    nano config.yaml
+
+Edit two things:
+
+1. authorized_targets — add the IP/hostname of a target you are actually
+   allowed to test (a HackTheBox/TryHackMe box IP, a VulnHub VM, your own
+   lab, or a signed engagement scope). Example:
+
+       authorized_targets:
+         - 10.10.10.5
+         - 192.168.56.0/24    # a whole local lab subnet also works
+
+   SPY-3697 refuses to run any active module (port scans, sqlmap, exploit
+   verification, packet capture, command execution) against anything not on
+   this list, unless you separately confirm authorization with the
+   --i-confirm-authorization flag at run time. This is a hard safety gate —
+   see LEGAL_AND_ETHICAL_USE.md. Only ever test systems you own or have
+   explicit written permission to test.
+
+2. llm section — leave provider as "anthropic" if you're using Claude
+   (default), or change it to "openai_compatible" or "ollama" if you're
+   using a different backend. See README.md for details.
+
+Save and exit nano: Ctrl+O, then Enter, then Ctrl+X.
+
+
+STEP 4 — Set your LLM API key
+--------------------------------
+    export ANTHROPIC_API_KEY="your-actual-api-key-here"
+
+Get a key from https://console.anthropic.com if you don't already have one.
+
+To avoid re-exporting it every new terminal session, add that line to the
+end of ~/.zshrc:
+
+    echo 'export ANTHROPIC_API_KEY="your-actual-api-key-here"' >> ~/.zshrc
+    source ~/.zshrc
+
+
+STEP 5 — Install the spy3697 command (optional but recommended)
+--------------------------------------------------------------------
+    pip install -e .
+
+This lets you run `spy3697 ...` directly instead of `python -m spy3697.cli ...`.
+
+
+STEP 6 — Run it
+------------------
+One-click full pipeline (recon -> identify -> verify -> report + PoC) against
+your authorized target:
+
+    spy3697 run 10.10.10.5 --i-confirm-authorization --goal "Check this target for common vulnerabilities"
+
+Replace 10.10.10.5 with your actual authorized target's IP or hostname.
+
+Results are written to:
+
+    workspace/<target>/<run_id>/report.md
+    workspace/<target>/<run_id>/poc/*.sh
+
+Run individual stages instead of the full pipeline:
+
+    spy3697 recon 10.10.10.5 --i-confirm-authorization
+    spy3697 scan 10.10.10.5 --run-id <run_id_from_recon>
+    spy3697 verify 10.10.10.5 --run-id <run_id> --finding-id <id>
+    spy3697 report --run-id <run_id> --target 10.10.10.5 --formats md,docx
+
+Or launch the local web interface instead of the CLI:
+
+    spy3697 web --port 8765
+
+Then open http://127.0.0.1:8765 in your browser. Enter the target, check the
+authorization confirmation box, and watch the pipeline run live.
+
+
+TROUBLESHOOTING
+------------------
+"spy3697: command not found"
+    Run `pip install -e .` from inside the spy3697 folder (Step 5), or use
+    `python -m spy3697.cli run ...` instead.
+
+"Authorization error: '...' is not in authorized_targets..."
+    Add the target to config.yaml under authorized_targets (Step 3), or add
+    --i-confirm-authorization to your command.
+
+A tool wrapper reports "tool binary not found"
+    That specific external tool (nmap/nuclei/sqlmap/etc.) isn't installed or
+    isn't on your PATH. Revisit Step 2 and re-run the `which ...` check.
+
+LLM calls fail / "No API key found in env var ..."
+    Revisit Step 4 — make sure ANTHROPIC_API_KEY (or your chosen provider's
+    key) is actually exported in the terminal you're running from.
