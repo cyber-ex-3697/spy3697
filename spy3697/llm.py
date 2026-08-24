@@ -57,12 +57,10 @@ class AnthropicConnector(LLMConnector):
         resp = self.client.messages.create(
             model=self.cfg.model,
             max_tokens=self.cfg.max_tokens,
-            temperature=self.cfg.temperature,
             system=system,
             messages=messages,
         )
         return "".join(block.text for block in resp.content if block.type == "text")
-
 
 class OpenAICompatibleConnector(LLMConnector):
     """Works with OpenAI, Azure OpenAI (with base_url set), or any server
