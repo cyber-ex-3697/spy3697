@@ -47,13 +47,18 @@ class AnthropicConnector(LLMConnector):
     def __init__(self, cfg: LLMConfig):
         super().__init__(cfg)
         import anthropic  # local import so other backends don't require this dep
-        if not cfg.api_key:
+        key = cfg.resolve_api_key()
+        if not key:
             raise RuntimeError(
-                f"No API key found in env var {cfg.api_key_env}. Set it before running."
+                f"No API key found. Set 'api_key' directly in config.yaml under llm:, "
+                f"or export the {cfg.api_key_env} environment variable before running."
             )
-        self.client = anthropic.Anthropic(api_key=cfg.api_key)
+        self.client = anthropic.Anthropic(api_key=key)
 
     def complete(self, messages: list[dict[str, str]], system: str = SYSTEM_PROMPT) -> str:
+        # NOTE: anthropic-python SDK v1.0+ (Aug 2026) removed temperature/top_p/top_k
+        # from messages.create() — current Claude models reject non-default sampling
+        # values outright, so the SDK dropped the kwarg. Do not add it back here.
         resp = self.client.messages.create(
             model=self.cfg.model,
             max_tokens=self.cfg.max_tokens,
@@ -62,15 +67,17 @@ class AnthropicConnector(LLMConnector):
         )
         return "".join(block.text for block in resp.content if block.type == "text")
 
+
 class OpenAICompatibleConnector(LLMConnector):
     """Works with OpenAI, Azure OpenAI (with base_url set), or any server
     implementing the /v1/chat/completions contract."""
 
     def __init__(self, cfg: LLMConfig):
         super().__init__(cfg)
-        if not cfg.api_key:
+        if not cfg.resolve_api_key():
             raise RuntimeError(
-                f"No API key found in env var {cfg.api_key_env}. Set it before running."
+                f"No API key found. Set 'api_key' directly in config.yaml under llm:, "
+                f"or export the {cfg.api_key_env} environment variable before running."
             )
         self.base_url = (cfg.base_url or "https://api.openai.com/v1").rstrip("/")
 
@@ -83,7 +90,7 @@ class OpenAICompatibleConnector(LLMConnector):
         }
         r = requests.post(
             f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.cfg.api_key}"},
+            headers={"Authorization": f"Bearer {self.cfg.resolve_api_key()}"},
             json=payload,
             timeout=120,
         )

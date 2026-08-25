@@ -1,6 +1,6 @@
 # SPY-3697
 
-![CI](https://github.com/YOUR_USERNAME/spy3697/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/cyber-ex-3697/spy3697/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 An LLM-orchestrated penetration testing assistant for **authorized** CTFs, target ranges, and
@@ -91,11 +91,47 @@ Configured in `config.yaml`:
 llm:
   provider: anthropic        # anthropic | openai_compatible | ollama
   model: claude-sonnet-5
-  api_key_env: ANTHROPIC_API_KEY
+  api_key: "sk-ant-your-key-here"   # simplest: put the key straight here
+  # api_key_env: ANTHROPIC_API_KEY  # alternative: read from an env var instead
 ```
+
+`config.yaml` is gitignored, so a key stored directly in it stays local to your machine and is
+never pushed to your repo. If you'd rather use an environment variable (e.g. for CI, or if you
+don't want secrets in any file on disk), leave `api_key` unset and export the variable named by
+`api_key_env` before running — `api_key` in the file always takes priority if both are set.
 
 Swap `provider` to `openai_compatible` for OpenAI, Azure OpenAI, or any compatible endpoint
 (set `base_url`), or `ollama` for a fully local model. See `spy3697/llm.py`.
+
+## Vulnerability coverage
+
+| Category | How it's covered |
+|---|---|
+| SQL Injection | sqlmap wrapper |
+| XSS | dalfox wrapper |
+| CSRF, SSRF, XXE, security misconfig | nuclei tags |
+| Command injection, path traversal | nuclei tags |
+| Known-CVE / N-day (incl. Log4Shell) | nuclei's maintained CVE templates (`nuclei -update-templates`) |
+| Insecure deserialization | nuclei tags |
+| Supply chain / dependency vulns | trivy wrapper (local path/image scan) |
+| Broken Access Control / IDOR / BOLA | `authz_matrix` helper — you supply object IDs + role tokens, it diffs responses as evidence; a human/LLM judges the verdict, it doesn't guess |
+| Missing Authorization | same `authz_matrix` helper |
+| AI/LLM prompt injection | `ai_probe` module — sends canary probes to an AI-backed endpoint, captures responses |
+| Privilege escalation | `privesc_enum` — runs an enumeration command you supply on a box you already have shell access to; doesn't escalate anything itself |
+
+**Deliberately not covered, and why:**
+- **Memory safety (buffer overflow, UAF, OOB write)** — needs source-level fuzzing (AFL/libFuzzer) or binary analysis against something you have local access to; different tool category from black-box network scanning.
+- **Named zero-days** — there's no public detection signature for an undisclosed vulnerability by definition; this tool won't author exploit code for specific unpatched CVEs.
+- **Model poisoning** — requires training-time access, not testable from outside a deployed system.
+- **Insecure design** — largely a manual architectural review, not something a scanner can assert.
+
+## On avoiding rate limits / blocks
+
+SPY-3697 does **not** rotate IPs or identities to evade blocking — see `LEGAL_AND_ETHICAL_USE.md`
+for why. In an authorized engagement, your source IP is normally whitelisted by the client, and
+getting blocked by a WAF/rate-limiter is itself a legitimate finding to report. What it does
+support is **pacing**: `limits.rate_limit_requests_per_sec` in `config.yaml` throttles tool
+invocations so you don't hammer a target faster than is reasonable for a scoped test.
 
 ## Evidence & no-guessing design
 

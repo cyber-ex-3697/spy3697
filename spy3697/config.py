@@ -17,12 +17,17 @@ class LLMConfig:
     provider: str = "anthropic"
     model: str = "claude-sonnet-5"
     api_key_env: str = "ANTHROPIC_API_KEY"
+    api_key: str | None = None      # optional: set directly in config.yaml instead of an env var
     base_url: str | None = None
     max_tokens: int = 4000
     temperature: float = 0.2
 
-    @property
-    def api_key(self) -> str | None:
+    def resolve_api_key(self) -> str | None:
+        """Priority: explicit `api_key` in config.yaml, then the env var named
+        by `api_key_env`. Letting people put it straight in config.yaml means
+        they don't have to `export` it in every new terminal session."""
+        if self.api_key:
+            return self.api_key
         return os.environ.get(self.api_key_env)
 
 
@@ -34,6 +39,8 @@ class ToolPaths:
     sqlmap_path: str = "sqlmap"
     gobuster_path: str = "gobuster"
     tshark_path: str = "tshark"
+    dalfox_path: str = "dalfox"
+    trivy_path: str = "trivy"
     wordlist_dir: str = "/usr/share/wordlists"
 
 

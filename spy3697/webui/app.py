@@ -53,8 +53,14 @@ def build_app(config_path: str = "config.yaml") -> FastAPI:
             goal = init.get("goal", "Check this target for common vulnerabilities")
             confirmed = bool(init.get("i_confirm_authorization", False))
 
-            cfg = load_config(config_path)
-            llm = build_llm(cfg.llm)
+            try:
+                cfg = load_config(config_path)
+                llm = build_llm(cfg.llm)
+            except Exception as e:  # noqa: BLE001
+                await ws.send_text(f"[error] failed to start: {e}")
+                await ws.send_text("[[DONE]]")
+                return
+
             logger = ConnectionLog()
 
             def worker():

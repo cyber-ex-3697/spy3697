@@ -20,6 +20,7 @@ from .evidence import EvidenceStore
 from .guardrails import require_authorization, require_active_allowed, AuthorizationError
 from .llm import LLMConnector
 from .tools import nmap_wrapper, http_wrapper, nuclei_wrapper, sqlmap_wrapper, bruteforce_wrapper
+from .tools import dalfox_wrapper, trivy_wrapper
 from .report import generate_report
 
 Logger = Callable[[str], None]
@@ -86,9 +87,17 @@ def stage_recon(ctx: RunContext) -> None:
 
 def stage_identify(ctx: RunContext) -> list[dict]:
     require_active_allowed(ctx.cfg, ctx.target)
-    ctx.log("[identify] running nuclei template scan ...")
+    ctx.log("[identify] running nuclei template scan (cve,xss,ssrf,xxe,csrf,misconfig,"
+            "rce,injection,lfi,deserialization,auth-bypass) ...")
     eid, nuclei_out = nuclei_wrapper.scan(ctx.store, ctx.cfg, ctx.run_id, f"http://{ctx.target}/")
     ctx.log(f"[identify] nuclei done, evidence #{eid}")
+
+    ctx.log("[identify] running dalfox XSS scan ...")
+    try:
+        eid, dalfox_out = dalfox_wrapper.scan_url(ctx.store, ctx.cfg, ctx.run_id, f"http://{ctx.target}/")
+        ctx.log(f"[identify] dalfox done, evidence #{eid}")
+    except Exception as e:  # noqa: BLE001
+        ctx.log(f"[identify] dalfox skipped/failed: {e}")
 
     # Let the LLM read *all* recon+identify evidence collected so far and
     # propose candidate findings, each citing evidence_ids it actually saw.

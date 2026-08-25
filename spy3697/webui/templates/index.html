@@ -51,6 +51,27 @@
       </div>
       <pre class="ledger" id="ledger">// SPY-3697 idle. Provide a target and confirm authorization to begin.\n</pre>
     </section>
+
+    <section class="side-panel">
+      <div class="radar-head">
+        <span>FINDINGS RADAR</span>
+        <span class="ledger-hint">verified = solid · candidate = dim</span>
+      </div>
+      <svg id="radar" viewBox="0 0 300 300" class="radar-svg">
+        <circle cx="150" cy="150" r="140" class="radar-ring" />
+        <circle cx="150" cy="150" r="95" class="radar-ring" />
+        <circle cx="150" cy="150" r="50" class="radar-ring" />
+        <line x1="150" y1="10" x2="150" y2="290" class="radar-cross" />
+        <line x1="10" y1="150" x2="290" y2="150" class="radar-cross" />
+        <g id="radar-sweep">
+          <path d="M150,150 L150,10 A140,140 0 0,1 258,79 Z" class="radar-sweep-fill" />
+        </g>
+        <g id="radar-nodes"></g>
+      </svg>
+
+      <div class="coverage-head">COVERAGE MATRIX</div>
+      <div class="coverage-grid" id="coverage-grid"></div>
+    </section>
   </main>
 
   <script src="/static/app.js"></script>

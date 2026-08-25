@@ -9,6 +9,24 @@ from typing import Optional
 
 from ..evidence import EvidenceStore
 
+_last_call_at: float = 0.0
+
+
+def _throttle(rate_limit_per_sec: int) -> None:
+    """Simple pacing so scans don't hammer the target faster than
+    `limits.rate_limit_requests_per_sec` in config.yaml. This is the
+    legitimate way to avoid tripping a target's rate limiter/WAF during an
+    authorized test — by being a well-behaved, predictable client, not by
+    rotating identity to dodge a block."""
+    global _last_call_at
+    if rate_limit_per_sec <= 0:
+        return
+    min_interval = 1.0 / rate_limit_per_sec
+    elapsed = time.time() - _last_call_at
+    if elapsed < min_interval:
+        time.sleep(min_interval - elapsed)
+    _last_call_at = time.time()
+
 
 def run_and_capture(
     store: EvidenceStore,
@@ -19,9 +37,11 @@ def run_and_capture(
     argv: list[str],
     tags: Optional[list[str]] = None,
     timeout: int = 300,
+    rate_limit_per_sec: int = 0,
 ) -> tuple[int, str, int]:
     """Run argv, capture combined stdout+stderr, store as evidence.
     Returns (evidence_id, output_text, exit_code)."""
+    _throttle(rate_limit_per_sec)
     started = time.time()
     command_str = " ".join(shlex.quote(a) for a in argv)
     try:

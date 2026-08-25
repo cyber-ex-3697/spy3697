@@ -3,7 +3,10 @@
 llm:
   provider: anthropic            # anthropic | openai_compatible | ollama
   model: claude-sonnet-5
-  api_key_env: ANTHROPIC_API_KEY # name of the environment variable holding the key
+  api_key_env: ANTHROPIC_API_KEY # env var name, used only if api_key below is left blank
+  api_key: null                  # OR put your key directly here, e.g. "sk-ant-..."
+                                  # (config.yaml is gitignored, so this stays local to your machine
+                                  # and won't get pushed to GitHub — but never commit a real key)
   base_url: null                 # only needed for openai_compatible / ollama, e.g. http://localhost:11434/v1
   max_tokens: 4000
   temperature: 0.2
@@ -27,6 +30,8 @@ tools:
   sqlmap_path: sqlmap
   gobuster_path: gobuster
   tshark_path: tshark
+  dalfox_path: dalfox      # XSS scanner: go install github.com/hahwul/dalfox/v2@latest
+  trivy_path: trivy        # supply-chain/SCA scanner: https://aquasecurity.github.io/trivy/latest/getting-started/installation/
   wordlist_dir: /usr/share/wordlists
 
 limits:
