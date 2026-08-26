@@ -92,14 +92,63 @@ Edit two things:
 Save and exit nano: Ctrl+O, then Enter, then Ctrl+X.
 
 
-STEP 4 — Set your LLM API key
---------------------------------
-You have two options. Option A is recommended — set it once and forget it,
-no need to export anything in every new terminal.
+STEP 4 — Choose an LLM backend: Anthropic (paid) or Ollama (100% free, local)
+---------------------------------------------------------------------------------
+SPY-3697 supports three backends. Anthropic (Claude) needs an API key and
+billing credits. Ollama runs a model entirely on your own machine, for
+free, with no API key and no internet connection needed once installed.
+Quality is lower than Claude but it costs nothing.
 
-  OPTION A — store it directly in config.yaml (recommended)
+  OPTION A — Ollama (free, local, no API key, no billing)
   -----------------------------------------------------------
-  Open config.yaml (from Step 3) and add your key under the llm section:
+  1. Install Ollama:
+
+      curl -fsSL https://ollama.com/install.sh | sh
+
+  2. Pull a model. If you don't have a GPU (check with `nvidia-smi` or
+     `lspci | grep -i vga`), pick a small model so it doesn't crawl on CPU:
+
+      ollama pull llama3.2:3b
+
+     If you do have a GPU, or want better quality and don't mind it being
+     slower, a bigger model follows instructions more reliably:
+
+      ollama pull llama3.1:8b
+
+  3. Confirm it's running (the installer sets this up as a systemd service
+     automatically):
+
+      systemctl status ollama
+      ollama run llama3.2:3b "say hello"
+
+  4. Point config.yaml at it:
+
+      llm:
+        provider: ollama
+        model: llama3.2:3b
+        base_url: http://localhost:11434/v1
+        max_tokens: 4000
+        temperature: 0.2
+
+     No api_key or api_key_env needed for this provider.
+
+  CAVEAT: smaller local models sometimes don't follow the strict JSON-only
+  output format SPY-3697's identify/verify stages require as reliably as
+  Claude does. If you see "LLM proposal failed to parse" errors often, try
+  a larger model (llama3.1:8b, qwen2.5:14b if your hardware allows).
+
+  On CPU-only machines, LLM calls during the identify/verify stages will
+  be noticeably slower than with the Anthropic API -- this is expected,
+  not a bug. Give it time before assuming it's stuck.
+
+  OPTION B — Anthropic / Claude (paid, needs API key + billing credits)
+  -----------------------------------------------------------------------
+  Get a key from https://console.anthropic.com/settings/keys and add
+  credits at https://console.anthropic.com/settings/billing (the API
+  requires a positive credit balance even with a valid key -- a key alone
+  is not enough).
+
+  Then in config.yaml:
 
       llm:
         provider: anthropic
@@ -108,29 +157,29 @@ no need to export anything in every new terminal.
         api_key: "sk-ant-your-actual-key-here"
 
   config.yaml is already listed in .gitignore, so this key stays only on
-  your machine and is never pushed to GitHub. It persists automatically —
-  every new terminal session and every `spy3697` command will pick it up
-  with no extra steps.
+  your machine and is never pushed to GitHub.
 
-  Get a key from https://console.anthropic.com if you don't have one yet.
+  Alternative to putting the key in config.yaml -- an environment variable
+  (has to be re-set per terminal session unless added to your shell config):
 
-  OPTION B — environment variable (has to be re-set per terminal session
-  unless added to your shell config)
-  -----------------------------------------------------------------------
       export ANTHROPIC_API_KEY="your-actual-api-key-here"
-
-  To make this persist across terminal sessions instead of just the
-  current one:
-
       echo 'export ANTHROPIC_API_KEY="your-actual-api-key-here"' >> ~/.zshrc
       source ~/.zshrc
 
   (If you use bash instead of zsh, edit ~/.bashrc and run
   `source ~/.bashrc` instead.)
 
-  NOTE: if you set api_key directly in config.yaml (Option A), it always
-  takes priority over this environment variable — you only need one or
-  the other, not both.
+  NOTE: if you set api_key directly in config.yaml, it always takes
+  priority over this environment variable -- you only need one or the
+  other, not both.
+
+  OPTION C — OpenAI-compatible endpoint (OpenAI, Azure OpenAI, etc.)
+  -----------------------------------------------------------------------
+      llm:
+        provider: openai_compatible
+        model: gpt-4o-mini
+        api_key: "sk-your-key-here"
+        base_url: https://api.openai.com/v1   # or your Azure endpoint
 
 
 STEP 5 — Install the spy3697 command (optional but recommended)
@@ -216,6 +265,24 @@ A tool wrapper reports "tool binary not found"
     isn't on your PATH. Revisit Step 2 and re-run the `which ...` check.
 
 LLM calls fail / "No API key found. Set 'api_key' directly in config.yaml..."
-    Revisit Step 4 — either add api_key: "sk-ant-..." under llm: in
-    config.yaml (Option A), or make sure ANTHROPIC_API_KEY is actually
-    exported in the terminal you're running from (Option B).
+    Revisit Step 4 -- either add api_key: "sk-ant-..." under llm: in
+    config.yaml (Anthropic/OpenAI-compatible), or make sure ANTHROPIC_API_KEY
+    is actually exported in the terminal you're running from.
+
+"Your credit balance is too low to access the Anthropic API"
+    Your Anthropic API key is valid but your account has no billing
+    credits. Add them at https://console.anthropic.com/settings/billing,
+    or switch provider to "ollama" in config.yaml to avoid billing
+    entirely (see Step 4, Option A).
+
+"LLM proposal failed to parse" with provider: ollama
+    The local model didn't return valid JSON. Try a larger model
+    (ollama pull llama3.1:8b or qwen2.5:14b) and update config.yaml's
+    llm.model to match -- bigger models follow the strict JSON-only
+    instructions more reliably than small ones like llama3.2:3b.
+
+Ollama responses are very slow
+    Expected on CPU-only machines (check with `nvidia-smi`; if that
+    command doesn't exist, you don't have an NVIDIA GPU). A smaller model
+    (llama3.2:3b) is noticeably faster than larger ones on CPU. This is
+    a hardware limitation, not a SPY-3697 bug.

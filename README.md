@@ -85,23 +85,49 @@ recon/scan/verify/report stream live with every evidence record inline.
 
 ## LLM backends
 
-Configured in `config.yaml`:
+Three options, configured in `config.yaml`:
 
+**Free, local, no API key — Ollama:**
 ```yaml
 llm:
-  provider: anthropic        # anthropic | openai_compatible | ollama
+  provider: ollama
+  model: llama3.2:3b        # or llama3.1:8b for better instruction-following if you have the hardware
+  base_url: http://localhost:11434/v1
+```
+Install with `curl -fsSL https://ollama.com/install.sh | sh`, then `ollama pull llama3.2:3b`. Runs
+entirely on your machine, costs nothing, but smaller local models follow the strict JSON-only
+output SPY-3697's identify/verify stages require less reliably than Claude — if you see
+`LLM proposal failed to parse` often, try a bigger model. CPU-only machines will be noticeably
+slower than a GPU or the hosted API.
+
+**Anthropic (Claude):**
+```yaml
+llm:
+  provider: anthropic
   model: claude-sonnet-5
   api_key: "sk-ant-your-key-here"   # simplest: put the key straight here
   # api_key_env: ANTHROPIC_API_KEY  # alternative: read from an env var instead
 ```
+Needs a key from [console.anthropic.com](https://console.anthropic.com/settings/keys) **and** a
+positive billing balance at [console.anthropic.com/settings/billing](https://console.anthropic.com/settings/billing)
+— a valid key alone isn't enough, the API will reject requests with
+`"Your credit balance is too low"` if there's no credit.
 
 `config.yaml` is gitignored, so a key stored directly in it stays local to your machine and is
 never pushed to your repo. If you'd rather use an environment variable (e.g. for CI, or if you
 don't want secrets in any file on disk), leave `api_key` unset and export the variable named by
 `api_key_env` before running — `api_key` in the file always takes priority if both are set.
 
-Swap `provider` to `openai_compatible` for OpenAI, Azure OpenAI, or any compatible endpoint
-(set `base_url`), or `ollama` for a fully local model. See `spy3697/llm.py`.
+**Any OpenAI-compatible endpoint** (OpenAI, Azure OpenAI, etc.):
+```yaml
+llm:
+  provider: openai_compatible
+  model: gpt-4o-mini
+  api_key: "sk-your-key-here"
+  base_url: https://api.openai.com/v1   # or your Azure endpoint
+```
+
+See `spy3697/llm.py` for the connector implementations.
 
 ## Vulnerability coverage
 

@@ -2,6 +2,8 @@
 
 llm:
   provider: anthropic            # anthropic | openai_compatible | ollama
+                                  # want free/local instead? set provider: ollama, model: llama3.2:3b,
+                                  # base_url: http://localhost:11434/v1 -- see README "LLM backends"
   model: claude-sonnet-5
   api_key_env: ANTHROPIC_API_KEY # env var name, used only if api_key below is left blank
   api_key: null                  # OR put your key directly here, e.g. "sk-ant-..."
