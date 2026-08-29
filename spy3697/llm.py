@@ -24,6 +24,40 @@ evidence_id(s) it is based on in the form [evidence:ID]. If no evidence_id appli
 state the claim as fact — mark it clearly as a hypothesis to verify next."""
 
 
+def _extract_json_substring(text: str) -> str | None:
+    """Find the first balanced {...} or [...] substring in text, scanning past
+    any preamble/explanation the model added and ignoring anything after it.
+    Handles braces/brackets inside string literals so it doesn't get confused
+    by JSON values that themselves contain '{' or '}' characters."""
+    start_chars = "{["
+    end_chars = "}]"
+    for i, ch in enumerate(text):
+        if ch in start_chars:
+            depth = 0
+            in_string = False
+            escape = False
+            for j in range(i, len(text)):
+                c = text[j]
+                if in_string:
+                    if escape:
+                        escape = False
+                    elif c == "\\":
+                        escape = True
+                    elif c == '"':
+                        in_string = False
+                    continue
+                if c == '"':
+                    in_string = True
+                elif c in start_chars:
+                    depth += 1
+                elif c in end_chars:
+                    depth -= 1
+                    if depth == 0:
+                        return text[i:j + 1]
+            break  # unbalanced from this start point, no valid substring
+    return None
+
+
 class LLMConnector(ABC):
     def __init__(self, cfg: LLMConfig):
         self.cfg = cfg
@@ -33,15 +67,31 @@ class LLMConnector(ABC):
         ...
 
     def complete_json(self, messages: list[dict[str, str]], system: str = SYSTEM_PROMPT) -> Any:
-        """Ask for strict JSON and parse it, stripping code fences defensively."""
+        """Ask for strict JSON and parse it. Tries a straight parse first
+        (after stripping markdown code fences), and if that fails -- common
+        with smaller local models that add a preamble or trailing
+        explanation around the JSON -- falls back to extracting the first
+        balanced JSON object/array substring from the response."""
         raw = self.complete(messages, system=system)
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.strip("`")
             if cleaned.lower().startswith("json"):
                 cleaned = cleaned[4:]
-        return json.loads(cleaned)
-
+            cleaned = cleaned.strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+        extracted = _extract_json_substring(cleaned)
+        if extracted is not None:
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError:
+                pass
+        raise json.JSONDecodeError(
+            f"No valid JSON found in model response: {raw[:300]!r}", cleaned, 0
+        )
 
 class AnthropicConnector(LLMConnector):
     def __init__(self, cfg: LLMConfig):
