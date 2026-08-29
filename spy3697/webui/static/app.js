@@ -136,7 +136,50 @@ runBtn.addEventListener('click', () => {
       ws.close();
       return;
     }
+    if (ev.data.startsWith('FINDINGS_JSON:')) {
+      try {
+        const findings = JSON.parse(ev.data.slice('FINDINGS_JSON:'.length));
+        renderConfidenceList(findings);
+      } catch (e) { /* ignore malformed payload */ }
+      return;
+    }
     appendLine(ev.data);
   };
   ws.onerror = () => appendLine('[error] websocket connection error');
 });
+
+function confidenceColor(pct) {
+  if (pct >= 70) return 'var(--green)';
+  if (pct >= 40) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function renderConfidenceList(findings) {
+  const list = document.getElementById('confidence-list');
+  if (!findings || findings.length === 0) {
+    list.innerHTML = '<div class="confidence-empty">No findings produced by this run.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  // Sort by confidence descending so the strongest leads surface first.
+  const sorted = [...findings].sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+  for (const f of sorted) {
+    const pct = f.confidence == null ? 0 : f.confidence;
+    const color = confidenceColor(pct);
+    const card = document.createElement('div');
+    card.className = 'confidence-card';
+    card.innerHTML = `
+      <div class="confidence-ring" style="background: conic-gradient(${color} ${pct * 3.6}deg, #1c2e28 0deg);">
+        <span class="confidence-ring-value" style="color:${color}">${pct}%</span>
+      </div>
+      <div class="confidence-meta">
+        <div class="confidence-title" title="${f.title}">${f.title}</div>
+        <div class="confidence-sub">
+          <span class="status-pill ${f.status}">${f.status}</span>
+          <span>${f.severity}</span>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}

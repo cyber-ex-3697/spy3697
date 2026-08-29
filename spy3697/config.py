@@ -43,6 +43,8 @@ class ToolPaths:
     tshark_path: str = "tshark"
     dalfox_path: str = "dalfox"
     trivy_path: str = "trivy"
+    nikto_path: str = "nikto"
+    ffuf_path: str = "ffuf"
     wordlist_dir: str = "/usr/share/wordlists"
 
 

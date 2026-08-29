@@ -14,6 +14,7 @@ from .config import load_config
 from .guardrails import require_authorization, require_active_allowed, AuthorizationError
 from .llm import build_llm
 from .tools import packet_capture, shell_exec, dalfox_wrapper, trivy_wrapper, authz_matrix, ai_probe
+from .tools import ffuf_wrapper, nikto_wrapper
 from .evidence import EvidenceStore
 
 app = typer.Typer(add_completion=False, help="SPY-3697 — authorized-use AI pentest orchestrator")
@@ -280,6 +281,51 @@ def ai_probe_cmd(
     for r in results:
         table.add_row(r["probe"][:50] + "...", str(r["status_code"]), f"#{r['evidence_id']}")
     console.print(table)
+
+
+@app.command()
+def ffuf(
+    target: str,
+    url: str = typer.Option(..., "--url", help="URL containing FUZZ, e.g. http://host/FUZZ"),
+    mode: str = typer.Option("paths", "--mode", help="paths | vhost"),
+    domain: str = typer.Option(None, "--domain", help="required for --mode vhost"),
+    run_id: str = typer.Option(..., "--run-id"),
+    config: str = typer.Option("config.yaml", "--config"),
+    i_confirm_authorization: bool = typer.Option(False, "--i-confirm-authorization"),
+):
+    """Content discovery / fuzzing via ffuf."""
+    cfg, _llm = _load(config)
+    require_authorization(cfg, target, i_confirm_authorization)
+    require_active_allowed(cfg, target)
+    workspace = cfg.workspace_dir / target.replace("/", "_") / run_id
+    store = EvidenceStore(workspace / "evidence.sqlite")
+    if mode == "vhost":
+        if not domain:
+            console.print("[red]--domain is required for --mode vhost[/red]")
+            raise typer.Exit(code=2)
+        eid, output = ffuf_wrapper.fuzz_vhosts(store, cfg, run_id, target, url, domain)
+    else:
+        eid, output = ffuf_wrapper.fuzz_paths(store, cfg, run_id, target, url)
+    console.print(f"[green]evidence #{eid}[/green]\n{output[:3000]}")
+
+
+@app.command()
+def nikto(
+    target: str,
+    port: int = typer.Option(80, "--port"),
+    ssl: bool = typer.Option(False, "--ssl"),
+    run_id: str = typer.Option(..., "--run-id"),
+    config: str = typer.Option("config.yaml", "--config"),
+    i_confirm_authorization: bool = typer.Option(False, "--i-confirm-authorization"),
+):
+    """Standalone web vulnerability scan via nikto."""
+    cfg, _llm = _load(config)
+    require_authorization(cfg, target, i_confirm_authorization)
+    require_active_allowed(cfg, target)
+    workspace = cfg.workspace_dir / target.replace("/", "_") / run_id
+    store = EvidenceStore(workspace / "evidence.sqlite")
+    eid, output = nikto_wrapper.scan(store, cfg, run_id, target, port=port, ssl=ssl)
+    console.print(f"[green]evidence #{eid}[/green]\n{output[:3000]}")
 
 
 if __name__ == "__main__":

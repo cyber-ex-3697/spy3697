@@ -89,9 +89,12 @@ class LLMConnector(ABC):
                 return json.loads(extracted)
             except json.JSONDecodeError:
                 pass
+        # Nothing parseable found -- raise with the raw response visible so
+        # the caller's error message actually shows what the model said.
         raise json.JSONDecodeError(
             f"No valid JSON found in model response: {raw[:300]!r}", cleaned, 0
         )
+
 
 class AnthropicConnector(LLMConnector):
     def __init__(self, cfg: LLMConfig):

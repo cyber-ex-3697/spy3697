@@ -20,7 +20,7 @@ from .evidence import EvidenceStore
 from .guardrails import require_authorization, require_active_allowed, AuthorizationError
 from .llm import LLMConnector
 from .tools import nmap_wrapper, http_wrapper, nuclei_wrapper, sqlmap_wrapper, bruteforce_wrapper
-from .tools import dalfox_wrapper, trivy_wrapper
+from .tools import dalfox_wrapper, trivy_wrapper, nikto_wrapper
 from .report import generate_report
 
 Logger = Callable[[str], None]
@@ -98,6 +98,13 @@ def stage_identify(ctx: RunContext) -> list[dict]:
         ctx.log(f"[identify] dalfox done, evidence #{eid}")
     except Exception as e:  # noqa: BLE001
         ctx.log(f"[identify] dalfox skipped/failed: {e}")
+
+    ctx.log("[identify] running nikto web vulnerability scan ...")
+    try:
+        eid, nikto_out = nikto_wrapper.scan(ctx.store, ctx.cfg, ctx.run_id, ctx.target)
+        ctx.log(f"[identify] nikto done, evidence #{eid}")
+    except Exception as e:  # noqa: BLE001
+        ctx.log(f"[identify] nikto skipped/failed: {e}")
 
     # Let the LLM read *all* recon+identify evidence collected so far and
     # propose candidate findings, each citing evidence_ids it actually saw.
@@ -242,22 +249,102 @@ JSON: {{"verified": true|false, "reasoning": "must reference evidence:{ev.id} sp
         return
 
     if verdict.get("verified") and f"evidence:{ev.id}" in verdict.get("reasoning", ""):
+        # DOUBLE-CHECK: re-ask independently, differently worded, before
+        # trusting the first verdict. Both passes must agree that this
+        # specific evidence confirms the finding, or we back off to
+        # "candidate" instead of asserting VERIFIED on a single pass.
+        second_prompt = f"""Independently re-examine this evidence. Do not assume the
+finding is correct -- look only at what the evidence actually shows.
+
+[evidence:{ev.id}] tool={ev.tool} command={ev.command}
+output:
+{ev.raw_output[:3000]}
+
+Claim under review: "{finding['title']}"
+
+Does the evidence above, on its own, actually demonstrate this claim is true? Answer
+with ONLY JSON: {{"agrees": true|false, "reasoning": "must reference evidence:{ev.id}"}}
+"""
+        second_agrees = False
+        try:
+            second_verdict = ctx.llm.complete_json([{"role": "user", "content": second_prompt}])
+            second_agrees = bool(second_verdict.get("agrees")) and f"evidence:{ev.id}" in second_verdict.get("reasoning", "")
+        except Exception as e:  # noqa: BLE001
+            ctx.log(f"[verify] double-check pass failed to parse: {e} -- treating as non-agreement")
+
         new_evidence_ids = json.loads(json.dumps(finding["evidence_ids"])) + [ev.id]
-        ctx.store.update_finding_status(finding_id, "verified", poc_command=poc_command)
-        # widen the evidence linkage to include the new proof
         ctx.store.conn.execute(
             "UPDATE findings SET evidence_ids=? WHERE id=?",
             (json.dumps(new_evidence_ids), finding_id),
         )
         ctx.store.conn.commit()
-        ctx.log(f"[verify] finding #{finding_id} VERIFIED (evidence #{ev.id})")
+
+        if second_agrees:
+            ctx.store.update_finding_status(finding_id, "verified", poc_command=poc_command)
+            confidence = compute_confidence(ctx.store, finding_id, double_check_agreed=True)
+            ctx.store.set_finding_confidence(finding_id, confidence)
+            ctx.log(f"[verify] finding #{finding_id} VERIFIED (evidence #{ev.id}, "
+                     f"double-check agreed, confidence {confidence}%)")
+        else:
+            # First pass said yes, second independent pass didn't agree --
+            # don't assert this as confirmed. Leave as a candidate with a
+            # lower confidence score and note the disagreement for review.
+            ctx.store.update_finding_status(finding_id, "candidate", poc_command=poc_command)
+            confidence = compute_confidence(ctx.store, finding_id, double_check_agreed=False)
+            ctx.store.set_finding_confidence(finding_id, confidence)
+            ctx.store.log_unverified_claim(
+                ctx.run_id, f"finding #{finding_id} verification claim",
+                f"initial verify said yes but double-check disagreed: {second_verdict.get('reasoning', 'n/a') if 'second_verdict' in dir() else 'parse failure'}",
+            )
+            ctx.log(f"[verify] finding #{finding_id} NOT confidently verified "
+                     f"(double-check disagreed, confidence {confidence}%) -- left as candidate")
     else:
         ctx.store.update_finding_status(finding_id, "rejected")
+        ctx.store.set_finding_confidence(finding_id, 0)
         ctx.store.log_unverified_claim(
             ctx.run_id, f"finding #{finding_id} verification claim",
             verdict.get("reasoning", "did not cite evidence_id or verified=false"),
         )
         ctx.log(f"[verify] finding #{finding_id} NOT verified")
+
+
+def compute_confidence(store: EvidenceStore, finding_id: int, double_check_agreed: bool) -> int:
+    """Confidence score (0-100) computed from concrete signals, not guessed:
+    - how much evidence backs the finding (more independent evidence = higher)
+    - whether the source tool itself flagged the result as verified
+      (e.g. nuclei's own 'verified':true matcher metadata)
+    - whether an independent double-check pass agreed with the first verdict
+    - whether a concrete PoC reproduction command was captured
+    """
+    row = store.conn.execute(
+        "SELECT evidence_ids, poc_command FROM findings WHERE id=?", (finding_id,)
+    ).fetchone()
+    if not row:
+        return 0
+    evidence_ids = json.loads(row[0])
+    poc_command = row[1]
+
+    score = 0
+    score += min(len(evidence_ids) * 12, 36)  # up to 36 for evidence breadth
+
+    tool_verified_flag = False
+    for eid in evidence_ids:
+        ev = store.get_evidence(eid)
+        if ev and '"verified":true' in ev.raw_output.replace(" ", ""):
+            tool_verified_flag = True
+            break
+    if tool_verified_flag:
+        score += 24  # the underlying tool itself marked this as a confirmed match
+
+    if double_check_agreed:
+        score += 30  # independent second pass agreed
+    else:
+        score += 5   # some signal existed, but not corroborated independently
+
+    if poc_command:
+        score += 10  # a concrete, runnable reproduction was captured
+
+    return max(0, min(100, score))
 
 
 # ---------------------------------------------------------------------------

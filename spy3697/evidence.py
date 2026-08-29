@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS findings (
     description TEXT,
     evidence_ids TEXT NOT NULL,    -- JSON list of evidence.id this finding is grounded in
     poc_command TEXT,              -- exact reproduction command, filled on verification
+    confidence INTEGER,            -- 0-100, computed from evidence count + tool corroboration
+                                     -- + independent double-check agreement; null until scored
     created_at REAL NOT NULL
 );
 
@@ -76,6 +78,17 @@ class EvidenceStore:
         self.conn = sqlite3.connect(self.db_path)
         self.conn.executescript(SCHEMA)
         self.conn.commit()
+        self._migrate_add_confidence_column()
+
+    def _migrate_add_confidence_column(self) -> None:
+        """Older evidence.sqlite files (created before confidence scoring was
+        added) won't have this column since CREATE TABLE IF NOT EXISTS skips
+        already-existing tables. Add it if missing so old workspaces keep
+        working without deleting their history."""
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(findings)").fetchall()]
+        if "confidence" not in cols:
+            self.conn.execute("ALTER TABLE findings ADD COLUMN confidence INTEGER")
+            self.conn.commit()
 
     def add_evidence(
         self,
@@ -181,6 +194,15 @@ class EvidenceStore:
             )
         else:
             self.conn.execute("UPDATE findings SET status=? WHERE id=?", (status, finding_id))
+        self.conn.commit()
+
+    def set_finding_confidence(self, finding_id: int, confidence: int) -> None:
+        """confidence is 0-100. See orchestrator.compute_confidence() for how
+        it's derived -- this method just persists the already-computed value."""
+        confidence = max(0, min(100, int(confidence)))
+        self.conn.execute(
+            "UPDATE findings SET confidence=? WHERE id=?", (confidence, finding_id)
+        )
         self.conn.commit()
 
     def list_findings(self, run_id: str, status: str | None = None) -> list[dict[str, Any]]:

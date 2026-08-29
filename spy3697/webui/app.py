@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from pathlib import Path
 
@@ -65,7 +66,9 @@ def build_app(config_path: str = "config.yaml") -> FastAPI:
 
             def worker():
                 try:
-                    orc.run_full_pipeline(cfg, llm, target, goal, confirmed, log=logger)
+                    ctx = orc.run_full_pipeline(cfg, llm, target, goal, confirmed, log=logger)
+                    findings = ctx.store.list_findings(ctx.run_id)
+                    logger("FINDINGS_JSON:" + json.dumps(findings))
                 except AuthorizationError as e:
                     logger(f"[auth-error] {e}")
                 except Exception as e:  # noqa: BLE001
