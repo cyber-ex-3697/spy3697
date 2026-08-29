@@ -99,11 +99,16 @@ class OpenAICompatibleConnector(LLMConnector):
 
 
 class OllamaConnector(LLMConnector):
-    """Fully local backend via Ollama's OpenAI-compatible /v1/chat/completions."""
+    """Fully local backend via Ollama's OpenAI-compatible /v1/chat/completions.
+    CPU-only inference can be slow on real workloads (identify/verify prompts
+    include recon evidence, not just a short test message), so the timeout
+    here is generous by default -- override via llm.timeout_seconds in
+    config.yaml if you need it shorter/longer for your hardware."""
 
     def __init__(self, cfg: LLMConfig):
         super().__init__(cfg)
         self.base_url = (cfg.base_url or "http://localhost:11434/v1").rstrip("/")
+        self.timeout = getattr(cfg, "timeout_seconds", None) or 900
 
     def complete(self, messages: list[dict[str, str]], system: str = SYSTEM_PROMPT) -> str:
         payload = {
@@ -111,7 +116,7 @@ class OllamaConnector(LLMConnector):
             "temperature": self.cfg.temperature,
             "messages": [{"role": "system", "content": system}] + messages,
         }
-        r = requests.post(f"{self.base_url}/chat/completions", json=payload, timeout=180)
+        r = requests.post(f"{self.base_url}/chat/completions", json=payload, timeout=self.timeout)
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
 

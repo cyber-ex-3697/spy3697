@@ -21,6 +21,8 @@ class LLMConfig:
     base_url: str | None = None
     max_tokens: int = 4000
     temperature: float = 0.2
+    timeout_seconds: int | None = None  # HTTP request timeout for openai_compatible/ollama;
+                                          # falls back to a provider-specific default if unset
 
     def resolve_api_key(self) -> str | None:
         """Priority: explicit `api_key` in config.yaml, then the env var named
